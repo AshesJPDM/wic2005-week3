@@ -1,0 +1,31 @@
+# page3.yaml: the words on your Week 3 page. make_page3.py puts each answer under its question.
+# A few sentences each, in your own words, about YOUR network and YOUR evidence.
+# Leave a blank line between paragraphs. Never put your name or full student ID here.
+
+repository: https://github.com/AshesJPDM/wic2005-week3
+
+answers:
+  design:
+    question: "Describe your design: why these routers, LANs and links, and how you chose the addresses."
+    answer: |
+      I designed a four-router topology with four host LANs inside my assigned 10.61.0.0/16 block. Routers r1, r2, and r3 are connected in a triangle using /30 point-to-point links (10.61.12.0/30, 10.61.13.0/30, and 10.61.23.0/30) to provide a redundant path between r1 and r2, while r4 connects to r2 via 10.61.24.0/30 as an aggregation router for two edge LANs.
+
+      For the LAN addresses, I assigned 10.61.1.0/24 to lan-h1 (on r1) and 10.61.2.0/24 to lan-h2 (on r2). On r4, I deliberately chose two contiguous, even-aligned /24 subnets—10.61.32.0/24 (lan-h3) and 10.61.33.0/24 (lan-h4)—so that they share their first 23 bits and can be cleanly summarised by a single /23 prefix.
+  summary:
+    question: "Which route summarises several LANs? Which networks does it cover, why is it correct, and what else would it attract if you added a network inside its range?"
+    answer: |
+      The route 10.61.32.0/23 on r1, r2, and r3 summarises lan-h3 (10.61.32.0/24) and lan-h4 (10.61.33.0/24). In binary, 32 is 00100000 and 33 is 00100001, meaning they share the first 7 bits of the third octet and differ only in the 24th bit.
+
+      This summary route is an exact summary covering 10.61.32.0 to 10.61.33.255, so it matches both h3 (10.61.32.10) and h4 (10.61.33.10) without overlapping lan-h1 or lan-h2, as confirmed in evidence3/summary.txt where r1 sends both destinations to 10.61.13.2. If a broader summary like 10.61.32.0/22 were used, or if a smaller subnet inside 10.61.32.0/23 were added elsewhere, the summary route would attract packets for any address in that range unless overridden by a more specific route via longest-prefix match.
+  failure:
+    question: "When you took a link down, what happened, and why couldn't your routes recover even though another path existed? What would have recovered?"
+    answer: |
+      When I brought down the link between r1 and r3, traceroute from h1 to h3 failed immediately at hop 1 (10.61.1.1) with Network unreachable, and "r1 ip route get h3" returned "Network is unreachable". When r1-eth2 went down, the Linux kernel deactivated the 10.61.13.0/30 interface route and the static route 10.61.32.0/23 via 10.61.13.2 that depended on it.
+
+      Even though a working physical path still existed via r2 (r1 -> r2 -> r4), static routes are fixed data and have no control-plane protocol to detect topology changes or recompute paths. A dynamic routing protocol such as OSPF would have detected the link failure and updated r1's FIB to forward 10.61.32.0/23 via 10.61.12.2 (r2).
+  control_plane:
+    question: "In your network, what was the control plane? Who worked out the routes, and what does that mean for a network of 40 routers?"
+    answer: |
+      In this network, I acted as the control plane, assisted by the offline validation script (build_routed.py and check_paths()). I calculated the shortest and redundant paths, designed the /23 summary prefix, wrote the static routes in network.yaml, and used check_paths() to verify that every host pair could communicate without routing loops or black holes before installing the FIB entries.
+
+      On a network of 40 routers, computing and maintaining static routes by hand would be slow and unable to react automatically when links fail. Describing routes as structured data and running automated pre-deployment checks prevents human typos from causing live outages, while dynamic routing protocols or automated SDN controllers are essential to recompute and update forwarding tables at scale.
